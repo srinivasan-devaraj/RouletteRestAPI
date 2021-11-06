@@ -41,12 +41,4 @@ public class ConnectionPool {
 		return null;
 	}
 	
-	public static Statement getStatement() throws SQLException {
-		return getConnection().createStatement();
-	}
-	
-	public static ResultSet executeQueryStmt(String query) throws SQLException {
-		return getConnection().createStatement().executeQuery(query);
-	}
-	
 }
