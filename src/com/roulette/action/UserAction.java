@@ -3,7 +3,9 @@ package com.roulette.action;
 import javax.ws.rs.FormParam;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 
@@ -14,96 +16,140 @@ import com.roulette.dao.UserDAO;
 import com.roulette.exception.InvalidRequestParamException;
 import com.roulette.util.CasinoUtil;
 import com.roulette.util.Constants;
+import com.roulette.util.Constants.CustomResponse;
+import com.roulette.util.CustomJSONObject;
 import com.roulette.util.GameUtil;
 import com.roulette.util.UserUtil;
 
 import java.sql.SQLException;
 
-
 @Path("/user")
 public class UserAction {
-	
+
 	@POST
 	@Path("/register")
 	@Produces(MediaType.APPLICATION_JSON)
-	public UserDAO register(@FormParam("name") String name, @FormParam("email_id") String email_id) throws SQLException, InvalidRequestParamException {
-		if(name == null || name.isEmpty()) {
+	public JSONObject register(@FormParam("name") String name, @FormParam("email_id") String email_id)
+			throws SQLException, InvalidRequestParamException {
+		if (name == null || name.isEmpty()) {
 			throw new InvalidRequestParamException("name");
-		}else if(email_id == null || !Constants.isValid(email_id)) {
+		} else if (email_id == null || !Constants.isValid(email_id)) {
 			throw new InvalidRequestParamException("email_id");
 		}
-		UserDAO userdao = new UserDAO(name, email_id);
-		userdao.setId(UserUtil.addUser(name, email_id));
-		return userdao;
+		CustomJSONObject response = new CustomJSONObject();
+		if(UserUtil.hasUser(email_id)) {
+			response.respond(CustomResponse.RESOURCE_EXISTS).put("email_id", email_id);
+		}else {
+			UserDAO userdao = new UserDAO(name, email_id);
+			UserUtil.addUser(name, email_id);
+			userdao.setId(UserUtil.getUserID(email_id));
+			response.put("user", userdao);
+		}
+		return response;
 	}
+
 	@POST
-	@Path("/bet")
+	@Path("/{user_id}/bet")
 	@Produces(MediaType.APPLICATION_JSON)
-	public JSONObject betOnGame(@FormParam("user_id") Long userId, @FormParam("game_id") Long gameId, @FormParam("bet_amount") Long amount, @FormParam("bet_number") int number) throws SQLException, InvalidRequestParamException {
-		if(userId == null) {
+	public JSONObject betOnGame(@PathParam("user_id") Long userId, @FormParam("game_id") Long gameId,
+			@FormParam("bet_amount") Long amount, @FormParam("bet_number") int number)
+			throws SQLException, InvalidRequestParamException {
+		if (userId == null || !UserUtil.isValidUser(userId)) {
 			throw new InvalidRequestParamException("user_id");
-		}else if(gameId == null) {
+		} else if (gameId == null) {
 			throw new InvalidRequestParamException("game_id");
-		}else if(amount == null) {
+		} else if (amount == null) {
 			throw new InvalidRequestParamException("bet_amount");
-		}else if(number < 1 || number > 36 ) {
+		} else if (number < 1 || number > 36) {
 			throw new InvalidRequestParamException("bet_number");
 		}
+		CustomJSONObject response = new CustomJSONObject();
+		if(!UserUtil.isValidUser(userId)) {
+			return response.respond(CustomResponse.UNAUTH_ACCESS).put("user_id", userId);
+		}
 		Long casinoId = CasinoUtil.getCasinoID(gameId);
-		JSONObject response = UserUtil.betOnGame(userId, gameId, casinoId, amount, number);
+		if (casinoId.equals(UserUtil.getCurrentCasinoId(userId))) {
+			response = UserUtil.betOnGame(userId, gameId, casinoId, amount, number);
+		} else {
+			response.respond(CustomResponse.USER_NOT_IN_CASINO).put("casino_id", casinoId);
+		}
+		return response;
+	}
+
+	@GET
+	@Path("/{user_id}/games")
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONObject listGames(@PathParam("user_id") Long userId) throws SQLException, InvalidRequestParamException {
+		if (userId == null || !UserUtil.isValidUser(userId)) {
+			throw new InvalidRequestParamException("user_id");
+		}
+		Long casinoId = UserUtil.getCurrentCasinoId(userId);
+		CustomJSONObject response = new CustomJSONObject();
+		if (casinoId.equals(0L)) {
+			response.respond(CustomResponse.USER_NOT_IN_ANY_CASINO);
+		} else {
+			response.put("games", GameUtil.getAllGames(casinoId));
+		}
+		return response;
+	}
+
+	@POST
+	@Path("/{user_id}/cashout")
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONObject cashOut(@PathParam("user_id") Long userId, @FormParam("amount") Long amount)
+			throws SQLException, InvalidRequestParamException {
+		if (userId == null || !UserUtil.isValidUser(userId)) {
+			throw new InvalidRequestParamException("user_id");
+		} else if (amount == null || amount < 0) {
+			throw new InvalidRequestParamException("amount");
+		}
+		CustomJSONObject response = new CustomJSONObject()
+				.put("amount", amount)
+				.putAllObj(UserUtil.updateBalance(userId, amount, false))
+				.put("balance", UserUtil.getBalanceAmount(userId));
+		return response;
+	}
+
+	@POST
+	@Path("/{user_id}/recharge")
+	@Produces(MediaType.APPLICATION_JSON)
+	public JSONObject recharge(@PathParam("user_id") Long userId, @FormParam("amount") Long amount)
+			throws SQLException, InvalidRequestParamException {
+		if (userId == null || !UserUtil.isValidUser(userId)) {
+			throw new InvalidRequestParamException("user_id");
+		} else if (amount == null) {
+			throw new InvalidRequestParamException("amount");
+		}
+		UserUtil.updateBalance(userId, amount, true);
+		CustomJSONObject response = new CustomJSONObject()
+				.put("amount", amount)
+				.put("balance", UserUtil.getBalanceAmount(userId))
+				.message("Amount loaded successfully");
 		return response;
 	}
 	
 	@GET
-	@Path("/games")
+	@Path("/{user_id}/casino")
 	@Produces(MediaType.APPLICATION_JSON)
-	public JSONArray listGames() throws SQLException {
-		JSONArray response = GameUtil.getAllGames(null);
+	public JSONObject casinoDetails() throws SQLException {
+		CustomJSONObject response = new CustomJSONObject().put("casino", CasinoUtil.getAllCasino());
 		return response;
 	}
-	
-	@POST
-	@Path("/games")
+
+	@PUT
+	@Path("/{user_id}/casino")
 	@Produces(MediaType.APPLICATION_JSON)
-	public JSONArray listGames(@FormParam("casino_id") Long casinoId) throws SQLException, InvalidRequestParamException {
-		if(casinoId == null) {
+	public JSONObject enterCasino(@PathParam("user_id") Long userId, @FormParam("casino_id") Long casinoId)
+			throws InvalidRequestParamException, SQLException {
+		if (userId == null || !UserUtil.isValidUser(userId)) {
+			throw new InvalidRequestParamException("user_id");
+		} else if (casinoId == null) {
 			throw new InvalidRequestParamException("casino_id");
 		}
-		JSONArray response = GameUtil.getAllGames(casinoId);
-		return response;
-	}
-	
-	@POST
-	@Path("/cashout")
-	@Produces(MediaType.APPLICATION_JSON)
-	public JSONObject cashOut(@FormParam("user_id") Long userId, @FormParam("amount") Long amount) throws SQLException, InvalidRequestParamException {
-		if(userId == null) {
-			throw new InvalidRequestParamException("user_id");
-		}else if(amount == null) {
-			throw new InvalidRequestParamException("amount");
-		}
-		UserUtil.updateBalance(userId, amount, false);
-		JSONObject response = new JSONObject();
-		response.put("amount", amount);
-		response.put("balance", UserUtil.getBalanceAmount(userId));
-		response.put("message", "Withdrawn successfully");
-		return response;
-	}
-	
-	@POST
-	@Path("/recharge")
-	@Produces(MediaType.APPLICATION_JSON)
-	public JSONObject recharge(@FormParam("user_id") Long userId, @FormParam("amount") Long amount) throws SQLException, InvalidRequestParamException {
-		if(userId == null) {
-			throw new InvalidRequestParamException("user_id");
-		}else if(amount == null) {
-			throw new InvalidRequestParamException("amount");
-		}
-		UserUtil.updateBalance(userId, amount, true);
-		JSONObject response = new JSONObject();
-		response.put("amount", amount);
-		response.put("balance", UserUtil.getBalanceAmount(userId));
-		response.put("message", "Amount loaded successfully");
+		UserUtil.updateCasino(userId, casinoId);
+		CustomJSONObject response = new CustomJSONObject()
+				.put("user_id", userId)
+				.put("casino_id", casinoId);
 		return response;
 	}
 }

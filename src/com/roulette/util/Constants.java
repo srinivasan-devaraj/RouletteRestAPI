@@ -1,5 +1,11 @@
 package com.roulette.util;
 
+import org.apache.http.HttpStatus;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+
 public class Constants {
 
 	public static final String GAME_OPEN = "open";
@@ -8,9 +14,30 @@ public class Constants {
 	public static final String GAME_END = "end";
 	public static final String GAME_UNKNOWN = "unknown";
 	
+	
 	public static final String RESPONSE_MESSAGE = "message";
-	public static final String RESPONSE_CODE = "response-code";
+	public static final String RESPONSE_CODE = "code";
 	public static final String RESPONSE_SUCCESS = "success";
+	
+	@Getter
+	@AllArgsConstructor
+	public enum CustomResponse{
+		SUCCESS(HttpStatus.SC_OK, RESPONSE_SUCCESS),
+		INVALID_REQUEST_PARAM(HttpStatus.SC_BAD_REQUEST, "Invalid request parameters, make sure the request params are valid"),
+		INTERNAL_SERVER_ERROR(HttpStatus.SC_INTERNAL_SERVER_ERROR, "Internal server error, please try again the request after sometime"),
+		RESOURCE_EXISTS(2005, "Resource already exists"),
+		INVALID_RESOURCE(2006, "Invalid resource id"),
+		UNAUTH_ACCESS(2007, "Unauthorized access"),
+		GAME_NOT_CLOSED(3005, "Game not in closed state"),
+		GAME_NOT_OPNED(3006, "Game not in open state"),
+		USER_NOT_IN_CASINO(3007, "User not in the corresponding casino"),
+		USER_NOT_IN_ANY_CASINO(3008, "User not in the corresponding casino"),
+		INSUFFICIENT_BALANCE(3009, "In-sufficient balance");
+		
+		
+		private int code;
+		private String message;
+	}
 	
 	public static boolean isValid(String email) {
 	   String regex = "^[\\w-_\\.+]*[\\w-_\\.]\\@([\\w]+\\.)+[\\w]+[\\w]$";

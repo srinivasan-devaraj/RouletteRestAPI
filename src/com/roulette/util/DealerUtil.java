@@ -40,5 +40,16 @@ public class DealerUtil {
 			return false;
 		}
 	}
+	
+	public static boolean isValidDealer(Long dealer_id) throws SQLException {
+		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
+			try (ResultSet rs = stmt.executeQuery("select Id from Dealer where Id = " + dealer_id)) {
+				if (rs.next()) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 
 }
