@@ -6,13 +6,13 @@ import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
 import org.apache.http.HttpStatus;
-import org.glassfish.jersey.server.monitoring.ExceptionMapperMXBean;
-import org.json.simple.JSONObject;
-
-import com.roulette.util.Constants;
 import com.roulette.util.Constants.CustomResponse;
 import com.roulette.util.CustomJSONObject;
 
+/**
+ * Class used to handle all the IllegalStateException here and send some generic response to the user to know something went wrong in the server.
+ * @author srini
+ */
 @Provider
 public class IllegalStateMapper implements ExceptionMapper<java.lang.IllegalStateException> {
 

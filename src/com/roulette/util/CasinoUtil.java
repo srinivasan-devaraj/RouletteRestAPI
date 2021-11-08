@@ -1,110 +1,197 @@
 package com.roulette.util;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.roulette.dao.CasinoDAO;
-import com.roulette.dao.DealerDAO;
+import org.hibernate.Query;
+import org.hibernate.Session;
+import org.hibernate.Transaction;
+
 import com.roulette.db.ConnectionPool;
+import com.roulette.entity.Casino;
+import com.roulette.entity.Dealer;
+import com.roulette.entity.Game;
 
+/**
+ * Util Class used to provide all the helper methods for Casino.class
+ * @author srini
+ */
 public class CasinoUtil {
-
-	public static void addCasino(String name, String email) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			stmt.executeUpdate("insert into Casino (Name, Email_Id) values ('" + name + "','" + email + "')");
-		}
-	}
-
-	public static Long getCasinoID(String email) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt.executeQuery("select Id from Casino where Email_Id = '" + email + "'");) {
-				if (rs.next()) {
-					return rs.getLong("Id");
-				} else {
-					return 0L;
-				}
-			}
-		}
-	}
-
-	public static Long getCasinoID(Long gameID) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt.executeQuery(
-					"select dealer.Casino_Id Casino_Id from Game game left join Dealer dealer on game.DealerId = dealer.Id where game.Id = "
-							+ gameID)) {
-				if (rs.next()) {
-					return rs.getLong("Casino_Id");
-				} else {
-					return 0L;
-				}
-			}
-		}
-	}
-
-	public static boolean isValidCasino(Long casino_id) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt.executeQuery("select Id from Casino where Id = " + casino_id)) {
-				if (rs.next()) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}
-
-	public static boolean hasCasino(String email) {
+	
+	/**
+	 * Stores the casino detail in the DB
+	 * @param casino
+	 */
+	public static void addCasino(Casino casino) {
+		Session session = null;
+		Transaction transaction = null;
 		try {
-			return !getCasinoID(email).equals(0L);
-		} catch (SQLException e) {
-			return false;
+			session = ConnectionPool.getSession();
+			transaction = session.beginTransaction();
+			session.save(casino);
+			transaction.commit();
+		} catch (Exception ex) {
+			ConnectionPool.rollBack(transaction);
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
 		}
 	}
-
-	public static Long getBalanceAmount(Long casinoId) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt.executeQuery("select Amount from Casino where Id = " + casinoId)) {
-				if (rs.next()) {
-					return rs.getLong("Amount");
-				}
-			}
+	
+	/**
+	 * Returns the casino id for the provided corresponding email 
+	 * @param email
+	 * @return
+	 */
+	public static Long getCasinoID(String email) {
+		Session session = null;
+		try {
+			session = ConnectionPool.getSession();
+			Query q = session.createQuery("from Casino casino where casino.email_id = :email_id");
+			q.setString("email_id", email);
+			Casino casino = (Casino) q.uniqueResult();
+			return casino.getId();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
 		}
 		return 0L;
 	}
 
-	public static synchronized void updateBalance(Long casinoId, Long amount) throws SQLException {
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			stmt.executeUpdate("update Casino set Amount = Amount + " + amount + " where Id = " + casinoId);
+	/**
+	 * Returns the casino id of the provided game id
+	 * @param gameID
+	 * @return
+	 */
+	public static Long getCasinoID(Long gameID) {
+		Session session = null;
+		try {
+			session = ConnectionPool.getSession();
+			Game game = (Game) session.get(Game.class, gameID);
+			return game.getDealer().getCasino().getId();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
+		}
+		return 0L;
+	}
+
+	/**
+	 * Validated whether the given casino id is valid or not
+	 * @param casino_id
+	 * @return
+	 */
+	public static boolean isValidCasino(Long casino_id) {
+		Session session = null;
+		try {
+			session = ConnectionPool.getSession();
+			return session.get(Casino.class, casino_id) != null;
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
+		}
+		return false;
+	}
+
+	/**
+	 * Confirms whether the casino table contains the provided email or not
+	 * @param email
+	 * @return
+	 */
+	public static boolean hasCasino(String email) {
+		return !getCasinoID(email).equals(0L);
+	}
+
+	/**
+	 * Returns the balance amount available for the provided casino id
+	 * @param casinoId
+	 * @return
+	 */
+	public static Long getBalanceAmount(Long casinoId) {
+		Session session = null;
+		try {
+			session = ConnectionPool.getSession();
+			Casino casino = (Casino) session.get(Casino.class, casinoId);
+			return casino.getAmount();
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
+		}
+		return 0L;
+	}
+
+	/**
+	 * Loads/updates the balance amount of the provided casino
+	 * @param casinoId
+	 * @param amount
+	 */
+	public static synchronized void updateBalance(Long casinoId, Long amount) {
+		Session session = null;
+		Transaction transaction = null;
+		try {
+			session = ConnectionPool.getSession();
+			transaction = session.beginTransaction();
+			session.createQuery(
+					"update Casino casino set casino.amount = casino.amount + :amount where casino.id = :casino_id")
+					.setLong("amount", amount).setLong("casino_id", casinoId).executeUpdate();
+			transaction.commit();
+		} catch (Exception ex) {
+			ConnectionPool.rollBack(transaction);
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
 		}
 	}
 
-	public static List<DealerDAO> getAllDealers(Long casino_id) throws SQLException {
-		List<DealerDAO> dealersList = new ArrayList<>();
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt
-					.executeQuery("select Id, Name, Email_Id from Dealer where Casino_Id = " + casino_id)) {
-				while (rs.next()) {
-					dealersList.add(
-							new DealerDAO(rs.getLong("Id"), rs.getString("Name"), rs.getString("Email_Id"), casino_id));
-				}
+	/**
+	 * Returns the list of all the dealers available in the corresponding casino
+	 * @param casino_id
+	 * @return
+	 */
+	public static List<CustomJSONObject> getAllDealers(Long casino_id) {
+		Session session = null;
+		List<CustomJSONObject> dealerListResponse = new ArrayList<>();
+		try {
+			session = ConnectionPool.getSession();
+			Query query = session.createQuery("from Dealer dealer where dealer.casino.id = :casino_id")
+					.setLong("casino_id", casino_id);
+			List<Dealer> dealerList = query.list();
+			for (Dealer dealer : dealerList) {
+				dealerListResponse.add(new CustomJSONObject(false).put("dealer_id", dealer.getId())
+						.put("dealer_name", dealer.getName()).put("dealer_email_id", dealer.getEmail_id()));
 			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
 		}
-		return dealersList;
+		return dealerListResponse;
 	}
 	
-	public static List<CustomJSONObject> getAllCasino() throws SQLException {
-		List<CustomJSONObject> casinoList = new ArrayList<>();
-		try (Connection conn = ConnectionPool.getConnection(); Statement stmt = conn.createStatement()) {
-			try (ResultSet rs = stmt.executeQuery("select Id, Name from Casino where Id != 0")) {
-				while (rs.next()) {
-					casinoList.add(new CustomJSONObject(false).put("id", rs.getLong("Id")).put("name", rs.getString("Name")));
-				}
+	/**
+	 * Returns the list of all casinos available in the application/server
+	 * @return
+	 */
+	public static List<CustomJSONObject> getAllCasino() {
+		Session session = null;
+		List<CustomJSONObject> casinoListResponse = new ArrayList<>();
+		try {
+			session = ConnectionPool.getSession();
+			Query query = session.createQuery("from Casino casino");
+			List<Casino> casinoList = query.list();
+			for (Casino casino : casinoList) {
+				casinoListResponse.add(new CustomJSONObject(false).put("id", casino.getId()).put("name", casino.getName()));
 			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ConnectionPool.closeSession(session);
 		}
-		return casinoList;
+		return casinoListResponse;
 	}
 
 }

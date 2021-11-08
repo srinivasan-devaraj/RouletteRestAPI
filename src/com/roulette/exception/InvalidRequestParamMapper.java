@@ -7,6 +7,10 @@ import javax.ws.rs.ext.Provider;
 
 import com.roulette.util.CustomJSONObject;
 
+/**
+ * Class used to handle all the InvalidRequestParamException here and send response to the user to know that there is an issue in the request param
+ * @author srini
+ */
 @Provider
 public class InvalidRequestParamMapper implements ExceptionMapper<com.roulette.exception.InvalidRequestParamException>{
 

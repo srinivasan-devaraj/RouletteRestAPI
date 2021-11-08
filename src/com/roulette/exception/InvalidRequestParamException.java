@@ -3,6 +3,10 @@ package com.roulette.exception;
 import org.apache.http.HttpStatus;
 import lombok.Getter;
 
+/**
+ * Exception Class used to store the custom message.
+ * @author srini
+ */
 @Getter
 public class InvalidRequestParamException extends Exception {
 
