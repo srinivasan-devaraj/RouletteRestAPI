@@ -11,7 +11,7 @@ Roulette game which accpets REST API request and responds in JSON format
 
 **Framework:** Maven, Jersey, Hibernate
 
-**Dependency** lombok, jersey-media-json-jackson
+**Dependency:** lombok, jersey-media-json-jackson
 
 
 ## ER Diagram
