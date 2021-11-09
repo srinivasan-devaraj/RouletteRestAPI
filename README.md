@@ -1,6 +1,6 @@
 # Roulette REST API
 
-Casino game which accpets REST API request and responds in JSON format
+Roulette game which accpets REST API request and responds in JSON format
 
 
 ## Tech Stack
